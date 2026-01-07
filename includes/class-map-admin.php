@@ -2,7 +2,7 @@
 /**
  * Admin Class
  *
- * @package ModernAuthPortal
+ * @package ModernAuthSystem
  */
 
 if (!defined('ABSPATH')) {
@@ -29,10 +29,10 @@ class MAP_Admin {
      */
     public static function add_admin_menu() {
         add_menu_page(
-            __('Auth Portal', 'modern-auth-portal'),
-            __('Auth Portal', 'modern-auth-portal'),
+            __('Auth System', 'modern-auth-system'),
+            __('Auth System', 'modern-auth-system'),
             'manage_options',
-            'modern-auth-portal',
+            'modern-auth-system',
             array(__CLASS__, 'settings_page'),
             'dashicons-lock',
             30
@@ -54,6 +54,9 @@ class MAP_Admin {
         register_setting('map_settings_group', 'map_logo_url');
         register_setting('map_settings_group', 'map_login_attempts');
         register_setting('map_settings_group', 'map_lockout_duration');
+        register_setting('map_settings_group', 'map_user_role');
+        register_setting('map_settings_group', 'map_user_role_name');
+        register_setting('map_settings_group', 'map_allow_backend_users');
     }
     
     /**
@@ -68,7 +71,7 @@ class MAP_Admin {
         if (isset($_POST['map_save']) && check_admin_referer('map_settings', 'map_nonce')) {
             self::save_settings();
             echo '<div class="notice notice-success is-dismissible"><p><strong>' . 
-                 esc_html__('Settings saved successfully!', 'modern-auth-portal') . 
+                 esc_html__('Settings saved successfully!', 'modern-auth-system') . 
                  '</strong></p></div>';
         }
         
@@ -76,7 +79,7 @@ class MAP_Admin {
             update_option('map_primary_color', '#D4FF00');
             update_option('map_secondary_color', '#000000');
             echo '<div class="notice notice-success is-dismissible"><p><strong>' . 
-                 esc_html__('Colors reset to default!', 'modern-auth-portal') . 
+                 esc_html__('Colors reset to default!', 'modern-auth-system') . 
                  '</strong></p></div>';
         }
         
@@ -90,6 +93,7 @@ class MAP_Admin {
         // Basic settings
         update_option('map_enable_registration', isset($_POST['enable_registration']) ? '1' : '0');
         update_option('map_require_approval', isset($_POST['require_approval']) ? '1' : '0');
+        update_option('map_allow_backend_users', isset($_POST['allow_backend_users']) ? '1' : '0');
         
         if (isset($_POST['redirect_url'])) {
             update_option('map_redirect_after_login', esc_url_raw(wp_unslash($_POST['redirect_url'])));
@@ -111,6 +115,19 @@ class MAP_Admin {
         
         if (isset($_POST['tagline'])) {
             update_option('map_tagline', sanitize_text_field(wp_unslash($_POST['tagline'])));
+        }
+        
+        // User role settings
+        if (isset($_POST['user_role'])) {
+            $user_role = sanitize_text_field(wp_unslash($_POST['user_role']));
+            // Validate role exists
+            if (get_role($user_role)) {
+                update_option('map_user_role', $user_role);
+            }
+        }
+        
+        if (isset($_POST['user_role_name'])) {
+            update_option('map_user_role_name', sanitize_text_field(wp_unslash($_POST['user_role_name'])));
         }
         
         // Security settings
@@ -144,10 +161,10 @@ class MAP_Admin {
         if (get_transient('map_activation_notice')) {
             ?>
             <div class="notice notice-success is-dismissible">
-                <p><strong><?php esc_html_e('Modern Auth Portal activated successfully!', 'modern-auth-portal'); ?></strong></p>
-                <p><?php esc_html_e('Get started by configuring your settings in', 'modern-auth-portal'); ?> 
-                   <a href="<?php echo esc_url(admin_url('admin.php?page=modern-auth-portal')); ?>">
-                       <?php esc_html_e('Auth Portal Settings', 'modern-auth-portal'); ?>
+                <p><strong><?php esc_html_e('Modern Auth System activated successfully!', 'modern-auth-system'); ?></strong></p>
+                <p><?php esc_html_e('Get started by configuring your settings in', 'modern-auth-system'); ?> 
+                   <a href="<?php echo esc_url(admin_url('admin.php?page=modern-auth-system')); ?>">
+                       <?php esc_html_e('Auth System Settings', 'modern-auth-system'); ?>
                    </a>
                 </p>
             </div>
@@ -160,23 +177,25 @@ class MAP_Admin {
      * User approval field
      */
     public static function user_approval_field($user) {
-        if (!in_array(MAP_ROLE, $user->roles)) {
+        // Only show for users with the configured role
+        $allowed_role = get_option('map_user_role', 'subscriber');
+        if (!in_array($allowed_role, $user->roles) && !in_array('administrator', $user->roles)) {
             return;
         }
         
         $approved = get_user_meta($user->ID, 'map_approved', true);
         ?>
-        <h3><?php esc_html_e('Portal Access', 'modern-auth-portal'); ?></h3>
+        <h3><?php esc_html_e('Authentication Access', 'modern-auth-system'); ?></h3>
         <table class="form-table">
             <tr>
-                <th><label for="map_approved"><?php esc_html_e('Approval Status', 'modern-auth-portal'); ?></label></th>
+                <th><label for="map_approved"><?php esc_html_e('Approval Status', 'modern-auth-system'); ?></label></th>
                 <td>
                     <label>
                         <input type="checkbox" name="map_approved" id="map_approved" value="1" <?php checked($approved, '1'); ?>>
-                        <strong><?php esc_html_e('Approve portal access', 'modern-auth-portal'); ?></strong>
+                        <strong><?php esc_html_e('Approve authentication access', 'modern-auth-system'); ?></strong>
                     </label>
                     <p class="description">
-                        <?php esc_html_e('Check this box to allow this user to access the portal.', 'modern-auth-portal'); ?>
+                        <?php esc_html_e('Check this box to allow this user to access the authentication system.', 'modern-auth-system'); ?>
                     </p>
                 </td>
             </tr>
