@@ -54,7 +54,7 @@ class MAP_Restrictions {
     /**
      * Maybe replace content with login form
      */
-    public static function replace_with_login_form($content) {
+    public static function maybe_replace_content($content) {
         global $map_page_restricted;
         
         // Only replace if page is restricted and user not logged in
