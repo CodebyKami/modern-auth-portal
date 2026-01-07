@@ -22,80 +22,80 @@ if (!defined('ABSPATH')) {
 }
 
 // Plugin constants
-define('MAS_VERSION', '2.2.0');
-define('MAS_PLUGIN_DIR', plugin_dir_path(__FILE__));
-define('MAS_PLUGIN_URL', plugin_dir_url(__FILE__));
-define('MAS_MIN_PHP', '7.4');
-define('MAS_MIN_WP', '5.8');
+define('MAP_VERSION', '2.2.0');
+define('MAP_PLUGIN_DIR', plugin_dir_path(__FILE__));
+define('MAP_PLUGIN_URL', plugin_dir_url(__FILE__));
+define('MAP_MIN_PHP', '7.4');
+define('MAP_MIN_WP', '5.8');
 
 // Check PHP version
-if (version_compare(PHP_VERSION, MAS_MIN_PHP, '<')) {
-    add_action('admin_notices', 'mas_php_version_notice');
+if (version_compare(PHP_VERSION, MAP_MIN_PHP, '<')) {
+    add_action('admin_notices', 'map_php_version_notice');
     return;
 }
 
-function mas_php_version_notice() {
+function map_php_version_notice() {
     echo '<div class="error"><p>';
     printf(
         esc_html__('Modern Auth System requires PHP version %s or higher. You are running version %s.', 'modern-auth-system'),
-        MAS_MIN_PHP,
+        MAP_MIN_PHP,
         PHP_VERSION
     );
     echo '</p></div>';
 }
 
 // Include required files
-require_once MAS_PLUGIN_DIR . 'includes/class-mas-activator.php';
-require_once MAS_PLUGIN_DIR . 'includes/class-mas-deactivator.php';
-require_once MAS_PLUGIN_DIR . 'includes/class-mas-security.php';
-require_once MAS_PLUGIN_DIR . 'includes/class-mas-ajax-handlers.php';
-require_once MAS_PLUGIN_DIR . 'includes/class-mas-shortcodes.php';
-require_once MAS_PLUGIN_DIR . 'includes/class-mas-admin.php';
-require_once MAS_PLUGIN_DIR . 'includes/class-mas-restrictions.php';
+require_once MAP_PLUGIN_DIR . 'includes/class-map-activator.php';
+require_once MAP_PLUGIN_DIR . 'includes/class-map-deactivator.php';
+require_once MAP_PLUGIN_DIR . 'includes/class-map-security.php';
+require_once MAP_PLUGIN_DIR . 'includes/class-map-ajax-handlers.php';
+require_once MAP_PLUGIN_DIR . 'includes/class-map-shortcodes.php';
+require_once MAP_PLUGIN_DIR . 'includes/class-map-admin.php';
+require_once MAP_PLUGIN_DIR . 'includes/class-map-restrictions.php';
 
 // Activation hook
-register_activation_hook(__FILE__, array('MAS_Activator', 'activate'));
+register_activation_hook(__FILE__, array('MAP_Activator', 'activate'));
 
 // Deactivation hook
-register_deactivation_hook(__FILE__, array('MAS_Deactivator', 'deactivate'));
+register_deactivation_hook(__FILE__, array('MAP_Deactivator', 'deactivate'));
 
 // Initialize plugin
-function mas_init() {
+function map_init() {
     // Load text domain
     load_plugin_textdomain('modern-auth-system', false, dirname(plugin_basename(__FILE__)) . '/languages');
     
     // Initialize classes
-    MAS_Security::init();
-    MAS_Ajax_Handlers::init();
-    MAS_Shortcodes::init();
-    MAS_Admin::init();
-    MAS_Restrictions::init();
+    MAP_Security::init();
+    MAP_Ajax_Handlers::init();
+    MAP_Shortcodes::init();
+    MAP_Admin::init();
+    MAP_Restrictions::init();
 }
-add_action('plugins_loaded', 'mas_init');
+add_action('plugins_loaded', 'map_init');
 
 // Add settings link on plugin page
-function mas_add_settings_link($links) {
+function map_add_settings_link($links) {
     $settings_link = '<a href="' . admin_url('admin.php?page=modern-auth-system') . '">' . __('Settings', 'modern-auth-system') . '</a>';
     array_unshift($links, $settings_link);
     return $links;
 }
-add_filter('plugin_action_links_' . plugin_basename(__FILE__), 'mas_add_settings_link');
+add_filter('plugin_action_links_' . plugin_basename(__FILE__), 'map_add_settings_link');
 
 // Enqueue admin styles
-function mas_admin_styles($hook) {
+function map_admin_styles($hook) {
     if ($hook !== 'toplevel_page_modern-auth-system') {
         return;
     }
-    wp_enqueue_style('mas-admin-styles', MAS_PLUGIN_URL . 'assets/css/admin.css', array(), MAS_VERSION);
+    wp_enqueue_style('map-admin-styles', MAP_PLUGIN_URL . 'assets/css/admin.css', array(), MAP_VERSION);
 }
-add_action('admin_enqueue_scripts', 'mas_admin_styles');
+add_action('admin_enqueue_scripts', 'map_admin_styles');
 
 // Helper function to get user role slug
-function mas_get_user_role() {
-    return get_option('mas_user_role', 'subscriber');
+function map_get_user_role() {
+    return get_option('map_user_role', 'subscriber');
 }
 
 // Helper function to get user role display name
-function mas_get_user_role_name() {
-    return get_option('mas_user_role_name', __('Member', 'modern-auth-system'));
+function map_get_user_role_name() {
+    return get_option('map_user_role_name', __('Member', 'modern-auth-system'));
 }
