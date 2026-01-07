@@ -2,7 +2,7 @@
 /**
  * AJAX Handlers Class
  *
- * @package ModernAuthPortal
+ * @package ModernAuthSystem
  */
 
 if (!defined('ABSPATH')) {
@@ -43,7 +43,7 @@ class MAP_Ajax_Handlers {
         $remember = isset($_POST['remember']);
         
         if (empty($username_or_email) || empty($password)) {
-            wp_send_json_error(array('message' => __('Please fill in all fields.', 'modern-auth-portal')));
+            wp_send_json_error(array('message' => __('Please fill in all fields.', 'modern-auth-system')));
         }
         
         // Try to find user by email or username
@@ -54,19 +54,37 @@ class MAP_Ajax_Handlers {
         }
         
         if (!$user || !wp_check_password($password, $user->user_pass, $user->ID)) {
-            wp_send_json_error(array('message' => __('Invalid credentials. Please try again.', 'modern-auth-portal')));
+            wp_send_json_error(array('message' => __('Invalid credentials. Please try again.', 'modern-auth-system')));
         }
         
-        // Check if user has required role
-        if (!in_array(MAP_ROLE, $user->roles) && !in_array('administrator', $user->roles)) {
-            wp_send_json_error(array('message' => __('Access denied. You do not have permission to access this portal.', 'modern-auth-portal')));
+        // Get allowed role
+        $allowed_role = get_option('map_user_role', 'subscriber');
+        $allow_backend_users = get_option('map_allow_backend_users', '1');
+        
+        // Check if user has allowed role or is admin
+        $user_roles = $user->roles;
+        $has_allowed_role = in_array($allowed_role, $user_roles) || in_array('administrator', $user_roles);
+        
+        // If backend users are allowed, check for any standard WordPress role
+        if ($allow_backend_users == '1') {
+            $standard_roles = array('subscriber', 'contributor', 'author', 'editor', 'administrator');
+            foreach ($user_roles as $role) {
+                if (in_array($role, $standard_roles)) {
+                    $has_allowed_role = true;
+                    break;
+                }
+            }
         }
         
-        // Check approval status
-        if (get_option('map_require_approval') == '1') {
+        if (!$has_allowed_role) {
+            wp_send_json_error(array('message' => __('Access denied. You do not have permission to access this area.', 'modern-auth-system')));
+        }
+        
+        // Check approval status only for non-admin users
+        if (get_option('map_require_approval') == '1' && !in_array('administrator', $user_roles)) {
             $approved = get_user_meta($user->ID, 'map_approved', true);
-            if ($approved !== '1' && !in_array('administrator', $user->roles)) {
-                wp_send_json_error(array('message' => __('Your account is pending approval. Please contact an administrator.', 'modern-auth-portal')));
+            if ($approved !== '1') {
+                wp_send_json_error(array('message' => __('Your account is pending approval. Please contact an administrator.', 'modern-auth-system')));
             }
         }
         
@@ -85,7 +103,7 @@ class MAP_Ajax_Handlers {
         
         wp_send_json_success(array(
             'redirect' => esc_url($redirect),
-            'message' => __('Login successful! Redirecting...', 'modern-auth-portal')
+            'message' => __('Login successful! Redirecting...', 'modern-auth-system')
         ));
     }
     
@@ -96,7 +114,7 @@ class MAP_Ajax_Handlers {
         check_ajax_referer('map_register', 'map_register_nonce');
         
         if (get_option('map_enable_registration') != '1') {
-            wp_send_json_error(array('message' => __('Registration is currently disabled.', 'modern-auth-portal')));
+            wp_send_json_error(array('message' => __('Registration is currently disabled.', 'modern-auth-system')));
         }
         
         $name = isset($_POST['name']) ? sanitize_text_field(wp_unslash($_POST['name'])) : '';
@@ -106,29 +124,29 @@ class MAP_Ajax_Handlers {
         
         // Validate inputs
         if (empty($name) || empty($username) || empty($email) || empty($password)) {
-            wp_send_json_error(array('message' => __('Please fill in all fields.', 'modern-auth-portal')));
+            wp_send_json_error(array('message' => __('Please fill in all fields.', 'modern-auth-system')));
         }
         
         // Validate username
         if (strlen($username) < 3) {
-            wp_send_json_error(array('message' => __('Username must be at least 3 characters long.', 'modern-auth-portal')));
+            wp_send_json_error(array('message' => __('Username must be at least 3 characters long.', 'modern-auth-system')));
         }
         
         if (!validate_username($username)) {
-            wp_send_json_error(array('message' => __('Username contains invalid characters.', 'modern-auth-portal')));
+            wp_send_json_error(array('message' => __('Username contains invalid characters.', 'modern-auth-system')));
         }
         
         if (username_exists($username)) {
-            wp_send_json_error(array('message' => __('Username already exists. Please choose another.', 'modern-auth-portal')));
+            wp_send_json_error(array('message' => __('Username already exists. Please choose another.', 'modern-auth-system')));
         }
         
         // Validate email
         if (!$email) {
-            wp_send_json_error(array('message' => __('Please enter a valid email address.', 'modern-auth-portal')));
+            wp_send_json_error(array('message' => __('Please enter a valid email address.', 'modern-auth-system')));
         }
         
         if (email_exists($email)) {
-            wp_send_json_error(array('message' => __('Email address is already registered.', 'modern-auth-portal')));
+            wp_send_json_error(array('message' => __('Email address is already registered.', 'modern-auth-system')));
         }
         
         // Validate password
@@ -156,9 +174,10 @@ class MAP_Ajax_Handlers {
             'last_name' => $last_name
         ));
         
-        // Set user role
+        // Set user role from settings
         $user = new WP_User($user_id);
-        $user->set_role(MAP_ROLE);
+        $user_role = get_option('map_user_role', 'subscriber');
+        $user->set_role($user_role);
         
         // Set approval status
         if (get_option('map_require_approval') == '1') {
@@ -170,7 +189,7 @@ class MAP_Ajax_Handlers {
             do_action('map_after_registration', $user, false);
             
             wp_send_json_success(array(
-                'message' => __('Registration successful! Your account is pending approval. You will be notified once approved.', 'modern-auth-portal')
+                'message' => __('Registration successful! Your account is pending approval. You will be notified once approved.', 'modern-auth-system')
             ));
         } else {
             update_user_meta($user_id, 'map_approved', '1');
@@ -181,7 +200,7 @@ class MAP_Ajax_Handlers {
             do_action('map_after_registration', $user, true);
             
             wp_send_json_success(array(
-                'message' => __('Registration successful! You can now login with your credentials.', 'modern-auth-portal')
+                'message' => __('Registration successful! You can now login with your credentials.', 'modern-auth-system')
             ));
         }
     }
@@ -193,7 +212,7 @@ class MAP_Ajax_Handlers {
         check_ajax_referer('map_profile', 'map_profile_nonce');
         
         if (!is_user_logged_in()) {
-            wp_send_json_error(array('message' => __('You must be logged in to update your profile.', 'modern-auth-portal')));
+            wp_send_json_error(array('message' => __('You must be logged in to update your profile.', 'modern-auth-system')));
         }
         
         $user_id = get_current_user_id();
@@ -202,17 +221,17 @@ class MAP_Ajax_Handlers {
         $bio = isset($_POST['bio']) ? sanitize_textarea_field(wp_unslash($_POST['bio'])) : '';
         
         if (empty($name) || empty($email)) {
-            wp_send_json_error(array('message' => __('Name and email are required.', 'modern-auth-portal')));
+            wp_send_json_error(array('message' => __('Name and email are required.', 'modern-auth-system')));
         }
         
         if (!$email) {
-            wp_send_json_error(array('message' => __('Please enter a valid email address.', 'modern-auth-portal')));
+            wp_send_json_error(array('message' => __('Please enter a valid email address.', 'modern-auth-system')));
         }
         
         // Check if email is already in use by another user
         $email_exists = email_exists($email);
         if ($email_exists && $email_exists != $user_id) {
-            wp_send_json_error(array('message' => __('Email address is already in use by another account.', 'modern-auth-portal')));
+            wp_send_json_error(array('message' => __('Email address is already in use by another account.', 'modern-auth-system')));
         }
         
         // Update user data
@@ -248,7 +267,7 @@ class MAP_Ajax_Handlers {
         
         do_action('map_after_profile_update', $user_id);
         
-        wp_send_json_success(array('message' => __('Profile updated successfully!', 'modern-auth-portal')));
+        wp_send_json_success(array('message' => __('Profile updated successfully!', 'modern-auth-system')));
     }
     
     /**
@@ -258,7 +277,7 @@ class MAP_Ajax_Handlers {
         check_ajax_referer('map_change_password', 'map_change_password_nonce');
         
         if (!is_user_logged_in()) {
-            wp_send_json_error(array('message' => __('You must be logged in to change your password.', 'modern-auth-portal')));
+            wp_send_json_error(array('message' => __('You must be logged in to change your password.', 'modern-auth-system')));
         }
         
         $user_id = get_current_user_id();
@@ -267,13 +286,13 @@ class MAP_Ajax_Handlers {
         $confirm_password = isset($_POST['confirm_password']) ? $_POST['confirm_password'] : '';
         
         if (empty($current_password) || empty($new_password) || empty($confirm_password)) {
-            wp_send_json_error(array('message' => __('Please fill in all fields.', 'modern-auth-portal')));
+            wp_send_json_error(array('message' => __('Please fill in all fields.', 'modern-auth-system')));
         }
         
         $user = get_userdata($user_id);
         
         if (!wp_check_password($current_password, $user->user_pass, $user_id)) {
-            wp_send_json_error(array('message' => __('Current password is incorrect.', 'modern-auth-portal')));
+            wp_send_json_error(array('message' => __('Current password is incorrect.', 'modern-auth-system')));
         }
         
         // Validate new password
@@ -283,7 +302,7 @@ class MAP_Ajax_Handlers {
         }
         
         if ($new_password !== $confirm_password) {
-            wp_send_json_error(array('message' => __('New passwords do not match.', 'modern-auth-portal')));
+            wp_send_json_error(array('message' => __('New passwords do not match.', 'modern-auth-system')));
         }
         
         // Update password
@@ -294,7 +313,7 @@ class MAP_Ajax_Handlers {
         
         do_action('map_after_password_change', $user_id);
         
-        wp_send_json_success(array('message' => __('Password changed successfully!', 'modern-auth-portal')));
+        wp_send_json_success(array('message' => __('Password changed successfully!', 'modern-auth-system')));
     }
     
     /**
@@ -306,13 +325,13 @@ class MAP_Ajax_Handlers {
         $email = isset($_POST['email']) ? MAP_Security::validate_email(wp_unslash($_POST['email'])) : '';
         
         if (!$email) {
-            wp_send_json_error(array('message' => __('Please enter a valid email address.', 'modern-auth-portal')));
+            wp_send_json_error(array('message' => __('Please enter a valid email address.', 'modern-auth-system')));
         }
         
         $user = get_user_by('email', $email);
         
         if (!$user) {
-            wp_send_json_error(array('message' => __('No account found with that email address.', 'modern-auth-portal')));
+            wp_send_json_error(array('message' => __('No account found with that email address.', 'modern-auth-system')));
         }
         
         // Generate reset key
@@ -333,22 +352,22 @@ class MAP_Ajax_Handlers {
         );
         
         // Send email
-        $subject = sprintf(__('[%s] Password Reset Request', 'modern-auth-portal'), get_bloginfo('name'));
+        $subject = sprintf(__('[%s] Password Reset Request', 'modern-auth-system'), get_bloginfo('name'));
         
-        $message = sprintf(__('Hi %s,', 'modern-auth-portal'), $user->display_name) . "\n\n";
-        $message .= __('You requested a password reset for your account.', 'modern-auth-portal') . "\n\n";
-        $message .= __('Click the link below to reset your password:', 'modern-auth-portal') . "\n\n";
+        $message = sprintf(__('Hi %s,', 'modern-auth-system'), $user->display_name) . "\n\n";
+        $message .= __('You requested a password reset for your account.', 'modern-auth-system') . "\n\n";
+        $message .= __('Click the link below to reset your password:', 'modern-auth-system') . "\n\n";
         $message .= $reset_url . "\n\n";
-        $message .= __('If you did not request this, please ignore this email.', 'modern-auth-portal') . "\n\n";
-        $message .= sprintf(__('Thanks,', 'modern-auth-portal')) . "\n";
+        $message .= __('If you did not request this, please ignore this email.', 'modern-auth-system') . "\n\n";
+        $message .= sprintf(__('Thanks,', 'modern-auth-system')) . "\n";
         $message .= get_bloginfo('name');
         
         $sent = wp_mail($email, $subject, $message);
         
         if ($sent) {
-            wp_send_json_success(array('message' => __('Password reset link has been sent to your email address.', 'modern-auth-portal')));
+            wp_send_json_success(array('message' => __('Password reset link has been sent to your email address.', 'modern-auth-system')));
         } else {
-            wp_send_json_error(array('message' => __('Failed to send email. Please try again later.', 'modern-auth-portal')));
+            wp_send_json_error(array('message' => __('Failed to send email. Please try again later.', 'modern-auth-system')));
         }
     }
     
@@ -357,13 +376,13 @@ class MAP_Ajax_Handlers {
      */
     private static function notify_admin_new_registration($user) {
         $admin_email = get_option('admin_email');
-        $subject = sprintf(__('[%s] New User Registration Pending Approval', 'modern-auth-portal'), get_bloginfo('name'));
+        $subject = sprintf(__('[%s] New User Registration Pending Approval', 'modern-auth-system'), get_bloginfo('name'));
         
-        $message = sprintf(__('A new user has registered and is awaiting approval:', 'modern-auth-portal')) . "\n\n";
-        $message .= sprintf(__('Username: %s', 'modern-auth-portal'), $user->user_login) . "\n";
-        $message .= sprintf(__('Email: %s', 'modern-auth-portal'), $user->user_email) . "\n";
-        $message .= sprintf(__('Name: %s', 'modern-auth-portal'), $user->display_name) . "\n\n";
-        $message .= sprintf(__('To approve this user, visit:', 'modern-auth-portal')) . "\n";
+        $message = sprintf(__('A new user has registered and is awaiting approval:', 'modern-auth-system')) . "\n\n";
+        $message .= sprintf(__('Username: %s', 'modern-auth-system'), $user->user_login) . "\n";
+        $message .= sprintf(__('Email: %s', 'modern-auth-system'), $user->user_email) . "\n";
+        $message .= sprintf(__('Name: %s', 'modern-auth-system'), $user->display_name) . "\n\n";
+        $message .= sprintf(__('To approve this user, visit:', 'modern-auth-system')) . "\n";
         $message .= admin_url('user-edit.php?user_id=' . $user->ID);
         
         wp_mail($admin_email, $subject, $message);
@@ -373,15 +392,15 @@ class MAP_Ajax_Handlers {
      * Send welcome email
      */
     private static function send_welcome_email($user) {
-        $subject = sprintf(__('Welcome to %s!', 'modern-auth-portal'), get_bloginfo('name'));
+        $subject = sprintf(__('Welcome to %s!', 'modern-auth-system'), get_bloginfo('name'));
         
-        $message = sprintf(__('Hi %s,', 'modern-auth-portal'), $user->display_name) . "\n\n";
-        $message .= sprintf(__('Welcome to %s!', 'modern-auth-portal'), get_bloginfo('name')) . "\n\n";
-        $message .= __('Your account has been successfully created.', 'modern-auth-portal') . "\n\n";
-        $message .= sprintf(__('Username: %s', 'modern-auth-portal'), $user->user_login) . "\n";
-        $message .= sprintf(__('Email: %s', 'modern-auth-portal'), $user->user_email) . "\n\n";
-        $message .= __('You can now login to access your account.', 'modern-auth-portal') . "\n\n";
-        $message .= sprintf(__('Thanks,', 'modern-auth-portal')) . "\n";
+        $message = sprintf(__('Hi %s,', 'modern-auth-system'), $user->display_name) . "\n\n";
+        $message .= sprintf(__('Welcome to %s!', 'modern-auth-system'), get_bloginfo('name')) . "\n\n";
+        $message .= __('Your account has been successfully created.', 'modern-auth-system') . "\n\n";
+        $message .= sprintf(__('Username: %s', 'modern-auth-system'), $user->user_login) . "\n";
+        $message .= sprintf(__('Email: %s', 'modern-auth-system'), $user->user_email) . "\n\n";
+        $message .= __('You can now login to access your account.', 'modern-auth-system') . "\n\n";
+        $message .= sprintf(__('Thanks,', 'modern-auth-system')) . "\n";
         $message .= get_bloginfo('name');
         
         wp_mail($user->user_email, $subject, $message);
