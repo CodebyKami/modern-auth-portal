@@ -2,7 +2,7 @@
 /**
  * Plugin Activator
  *
- * @package ModernAuthPortal
+ * @package ModernAuthSystem
  */
 
 if (!defined('ABSPATH')) {
@@ -20,14 +20,11 @@ class MAP_Activator {
             deactivate_plugins(plugin_basename(__FILE__));
             wp_die(
                 sprintf(
-                    esc_html__('Modern Auth Portal requires WordPress version %s or higher.', 'modern-auth-portal'),
+                    esc_html__('Modern Auth System requires WordPress version %s or higher.', 'modern-auth-system'),
                     MAP_MIN_WP
                 )
             );
         }
-        
-        // Create custom role
-        self::create_custom_role();
         
         // Set default options
         self::set_default_options();
@@ -37,23 +34,6 @@ class MAP_Activator {
         
         // Set activation flag
         set_transient('map_activation_notice', true, 30);
-    }
-    
-    /**
-     * Create custom user role
-     */
-    private static function create_custom_role() {
-        if (!get_role(MAP_ROLE)) {
-            add_role(
-                MAP_ROLE,
-                __('Dashboard User', 'modern-auth-portal'),
-                array(
-                    'read' => true,
-                    'edit_posts' => false,
-                    'delete_posts' => false
-                )
-            );
-        }
     }
     
     /**
@@ -68,10 +48,13 @@ class MAP_Activator {
             'map_secondary_color' => '#000000',
             'map_restricted_pages' => array(),
             'map_logo_url' => '',
-            'map_brand_name' => __('Welcome', 'modern-auth-portal'),
-            'map_tagline' => __('Sign in to continue your session', 'modern-auth-portal'),
+            'map_brand_name' => __('Welcome', 'modern-auth-system'),
+            'map_tagline' => __('Sign in to continue', 'modern-auth-system'),
             'map_login_attempts' => '5',
-            'map_lockout_duration' => '15'
+            'map_lockout_duration' => '15',
+            'map_user_role' => 'subscriber',
+            'map_user_role_name' => __('Member', 'modern-auth-system'),
+            'map_allow_backend_users' => '1'
         );
         
         foreach ($defaults as $key => $value) {
